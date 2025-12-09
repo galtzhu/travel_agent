@@ -1,53 +1,65 @@
 import os
+import streamlit as st
 from dotenv import load_dotenv
 from agno.agent import Agent
 from agno.models.google import Gemini
-# 导入数据库模块
-from agno.db.sqlite import SqliteDb
-# 导入你的工具
+# 🔴 关键变化 1：导入 PostgresDb 而不是 SqliteDb
+from agno.db.postgres import PostgresDb
 from tools.gaode_tool import GaodeToolkit
 from tools.tomorrow_weather_tool import TomorrowWeatherToolkit
 
 load_dotenv()
 
-# 定义数据库文件路径
-DB_PATH = "agent_storage.db"
+def get_env_var(key_name):
+    """兼容本地和云端的 Key 读取助手"""
+    try:
+        return st.secrets[key_name]
+    except (FileNotFoundError, KeyError):
+        return os.getenv(key_name)
 
 def get_travel_agent(session_id="default_session"):
-    # 1. 检查 Key
-    if not os.getenv("GAODE_API_KEY") or not os.getenv("TOMORROW_API_KEY"):
-        raise ValueError("请先配置 GAODE_API_KEY 和 TOMORROW_API_KEY")
+    # --- 1. 读取 Key ---
+    google_key = get_env_var("GOOGLE_API_KEY")
+    gaode_key = get_env_var("GAODE_API_KEY")
+    tomorrow_key = get_env_var("TOMORROW_API_KEY")
+    
+    # 🔴 关键变化 2：读取 DB_URL
+    db_url = get_env_var("DB_URL") 
 
-    # 2. 初始化模型
+    # --- 2. 检查是否读取成功 ---
+    # 🔴 关键变化 3：把 db_url 加入检查列表
+    if not all([google_key, gaode_key, tomorrow_key, db_url]):
+        raise ValueError("密钥缺失！请检查 .env 或 Streamlit Secrets，确保 DB_URL 已配置")
+
+    # 注入环境变量
+    os.environ["GOOGLE_API_KEY"] = google_key
+    os.environ["GAODE_API_KEY"] = gaode_key
+    os.environ["TOMORROW_API_KEY"] = tomorrow_key
+
     model = Gemini(id="gemini-2.5-flash")
     
-    # 3. 初始化数据库连接
-    # 文档截图显示直接传入 db_file
-    db = SqliteDb(db_file=DB_PATH)
+    # 🔴 关键变化 4：创建 Postgres 数据库连接
+    # 这里真正使用了 db_url 变量！
+    db = PostgresDb(
+        db_url=db_url,
+        table_name="agent_sessions"  # 自定义表名
+    )
 
-    # 4. 创建 Agent
+    # 创建 Agent
     agent = Agent(
         model=model,
         session_id=session_id,
-        
-        # 🟢 修正点 1：参数名改为 db
-        db=db,
-        
-        # 🟢 修正点 2：参数名改为 add_history_to_context
-        # 这会让 Agent 自动读取数据库里的历史记录，作为上下文发给 Gemini
+        db=db, # 🔴 关键变化 5：传入 Postgres 实例
         add_history_to_context=True,
-        
-        # 🟢 修正点 3：删除了 num_history_responses (避免报错)
-        
         tools=[GaodeToolkit(), TomorrowWeatherToolkit()],
         markdown=True,
         debug_mode=True, 
         description="你是一位拥有10年经验的高级私人旅行定制师...",
         instructions=[
-            "1. 优先检查对话历史，不要重复询问已知信息。",
-            "2. 必须调用 `hourly_weather` 查天气。",
-            "3. 必须调用 `search_places` 查真实地点。",
-            "4. 输出包含：👔衣、🥣食、🏠住/玩、🚗行 四个维度。"
+            "1. 必须确认：几人出行？有无老人小孩？偏好风格？",
+            "2. 必须用 `hourly_weather` 查天气，用 `search_places` 查地点。",
+            "3. 方案包含：👔衣、🥣食、🏠住/玩、🚗行。",
+            "4. 如果用户之前提供过信息，不要重复问。"
         ]
     )
     return agent
