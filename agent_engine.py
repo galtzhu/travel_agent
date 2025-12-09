@@ -39,11 +39,18 @@ def get_travel_agent(session_id="default_session"):
     os.environ["TOMORROW_API_KEY"] = tomorrow_key
 
     # 🔴 关键修复：使用我们自定义的 QwenChat 类
-    model = QwenChat(
-        id="qwen-plus", 
-        api_key=qwen_key,
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    )
+    model = OpenAIChat(
+    id="qwen-plus",
+    api_key=qwen_key,
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    # 强制告诉 Agno：system 还是 system，不要改成 developer
+    role_map={
+        "system": "system", 
+        "user": "user",
+        "assistant": "assistant",
+        "tool": "tool"
+    }
+)
     
     # 4. 数据库连接
     db = PostgresDb(
