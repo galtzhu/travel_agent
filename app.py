@@ -1,7 +1,7 @@
 import streamlit as st
+import uuid # 🟢 导入 uuid 生成唯一ID
 from agent_engine import get_travel_agent
 
-# 1. 页面配置
 st.set_page_config(
     page_title="智能旅行助手",
     page_icon="🎒",
@@ -11,19 +11,22 @@ st.set_page_config(
 st.title("🎒 智能旅行助手 (Agno + Gemini 2.5)")
 st.caption("🚀 由 高德地图 & Tomorrow.io 提供实时数据支持")
 
+# 🟢 1. 为每个用户生成唯一的 Session ID (只在第一次运行时生成)
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
 
-# 2. 初始化 Agent (使用缓存，避免每次对话都重新创建)
-@st.cache_resource
-def load_agent():
-    return get_travel_agent()
-
+# 🟢 2. 初始化 Agent (传入 session_id)
+# 注意：这里去掉了 @st.cache_resource，因为我们要动态传入 session_id
+# 且 Agno 有了 Storage 后，创建开销很小，可以直接创建
+def get_agent():
+    return get_travel_agent(session_id=st.session_state.session_id)
 
 try:
-    agent = load_agent()
+    agent = get_agent()
 except Exception as e:
     st.error(f"Agent 初始化失败: {e}")
     st.stop()
-
+    
 # 3. 管理聊天记录 (Session State)
 if "messages" not in st.session_state:
     st.session_state["messages"] = [
