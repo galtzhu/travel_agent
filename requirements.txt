@@ -3,7 +3,7 @@
 agno>=2.3.8
 
 # --- 模型驱动 ---
-# Google Gemini 的最新驱动
+openai
 google-genai
 
 # --- 工具支持 ---
@@ -20,3 +20,4 @@ requests
 sqlalchemy
 pydantic
 psycopg2-binary
+
