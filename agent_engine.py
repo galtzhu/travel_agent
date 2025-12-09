@@ -42,7 +42,7 @@ def get_travel_agent(session_id="default_session"):
     # 这里真正使用了 db_url 变量！
     db = PostgresDb(
         db_url=db_url,
-        table_name="agent_sessions"  # 自定义表名
+        session_table="agent_sessions"  # 自定义表名
     )
 
     # 创建 Agent
